@@ -1,26 +1,30 @@
 import React, { useState } from 'react';
 import { X, Mail, Lock, User, Eye, EyeOff, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
+import { authAPI } from '../services/api';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onAuthSuccess?: (user: any) => void;
 }
 
 type AuthMode = 'signin' | 'signup' | 'forgot';
 
-const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
+const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess }) => {
   const [mode, setMode] = useState<AuthMode>('signin');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [apiError, setApiError] = useState('');
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    phone: ''
   });
 
   if (!isOpen) return null;
@@ -50,9 +54,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    // Clear error when user starts typing
+    // Clear errors when user starts typing
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+    if (apiError) {
+      setApiError('');
     }
   };
 
@@ -76,9 +83,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       newErrors.password = 'Password is required';
     } else if (mode !== 'forgot' && formData.password.length < 8) {
       newErrors.password = 'Password must be at least 8 characters long';
-    } else if (mode !== 'forgot' && !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
+    } else if (mode === 'signup' && !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
       newErrors.password = 'Password must contain at least one uppercase letter, one lowercase letter, and one number';
-    } else if (mode !== 'forgot' && !/(?=.*[!@#$%^&*(),.?":{}|<>])/.test(formData.password)) {
+    } else if (mode === 'signup' && !/(?=.*[!@#$%^&*(),.?":{}|<>])/.test(formData.password)) {
       newErrors.password = 'Password must contain at least one special character';
     }
 
@@ -105,13 +112,18 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       } else if (!/^[a-zA-Z\s]+$/.test(formData.lastName.trim())) {
         newErrors.lastName = 'Last name can only contain letters';
       }
+
+      // Phone validation (optional for signup)
+      if (formData.phone && !/^[+]?[91]?[0-9\s\-]{10,13}$/.test(formData.phone.replace(/\s/g, ''))) {
+        newErrors.phone = 'Please enter a valid phone number';
+      }
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateForm()) {
@@ -119,26 +131,93 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     }
 
     setIsSubmitting(true);
+    setApiError('');
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setSubmitSuccess(true);
+    try {
+      if (mode === 'signup') {
+        // Register new user
+        const response = await authAPI.register({
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          email: formData.email.toLowerCase().trim(),
+          password: formData.password,
+          phone: formData.phone.trim() || undefined
+        });
+
+        console.log('Registration successful:', response);
+        
+        // Call success callback if provided
+        if (onAuthSuccess) {
+          onAuthSuccess(response.user);
+        }
+        
+        setSubmitSuccess(true);
+        
+        // Close modal after showing success message
+        setTimeout(() => {
+          setSubmitSuccess(false);
+          resetForm();
+          onClose();
+        }, 2000);
+
+      } else if (mode === 'signin') {
+        // Login existing user
+        const response = await authAPI.login({
+          email: formData.email.toLowerCase().trim(),
+          password: formData.password
+        });
+
+        console.log('Login successful:', response);
+        
+        // Call success callback if provided
+        if (onAuthSuccess) {
+          onAuthSuccess(response.user);
+        }
+        
+        setSubmitSuccess(true);
+        
+        // Close modal after showing success message
+        setTimeout(() => {
+          setSubmitSuccess(false);
+          resetForm();
+          onClose();
+        }, 2000);
+
+      } else if (mode === 'forgot') {
+        // Handle forgot password (placeholder for now)
+        // You can implement this later with a proper password reset flow
+        setSubmitSuccess(true);
+        
+        setTimeout(() => {
+          setSubmitSuccess(false);
+          resetForm();
+          onClose();
+        }, 2000);
+      }
+    } catch (error: any) {
+      console.error('Authentication error:', error);
       
-      // Show success message for 2 seconds then close
-      setTimeout(() => {
-        setSubmitSuccess(false);
-        resetForm();
-        onClose();
-      }, 2000);
-    }, 1500);
+      // Handle specific error messages
+      if (error.message.includes('already exists')) {
+        setApiError('An account with this email already exists. Please sign in instead.');
+      } else if (error.message.includes('Invalid email or password')) {
+        setApiError('Invalid email or password. Please check your credentials.');
+      } else if (error.message.includes('User not found')) {
+        setApiError('No account found with this email. Please sign up first.');
+      } else {
+        setApiError('Something went wrong. Please try again later.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const resetForm = () => {
-    setFormData({ firstName: '', lastName: '', email: '', password: '', confirmPassword: '' });
+    setFormData({ firstName: '', lastName: '', email: '', password: '', confirmPassword: '', phone: '' });
     setShowPassword(false);
     setShowConfirmPassword(false);
     setErrors({});
+    setApiError('');
     setIsSubmitting(false);
     setSubmitSuccess(false);
   };
@@ -193,6 +272,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* API Error Display */}
+          {apiError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-2">
+              <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+              <p className="text-red-700 text-sm">{apiError}</p>
+            </div>
+          )}
+
           {mode === 'signup' && (
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -207,11 +294,16 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     name="firstName"
                     value={formData.firstName}
                     onChange={handleInputChange}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
+                    className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${
+                      errors.firstName ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                    }`}
                     placeholder="John"
                     required
                   />
                 </div>
+                {errors.firstName && (
+                  <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>
+                )}
               </div>
               <div>
                 <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-2">
@@ -225,11 +317,16 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     name="lastName"
                     value={formData.lastName}
                     onChange={handleInputChange}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
+                    className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${
+                      errors.lastName ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                    }`}
                     placeholder="Doe"
                     required
                   />
                 </div>
+                {errors.lastName && (
+                  <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>
+                )}
               </div>
             </div>
           )}
@@ -256,6 +353,30 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               )}
             </div>
           </div>
+
+          {mode === 'signup' && (
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
+                Phone Number (Optional)
+              </label>
+              <div className="relative">
+                <input
+                  type="tel"
+                  id="phone"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${
+                    errors.phone ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                  }`}
+                  placeholder="+91 98765 43210"
+                />
+                {errors.phone && (
+                  <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {mode !== 'forgot' && (
             <div>
@@ -351,7 +472,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             {isSubmitting ? (
               <>
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                <span>Processing...</span>
+                <span>
+                  {mode === 'signin' && 'Signing In...'}
+                  {mode === 'signup' && 'Creating Account...'}
+                  {mode === 'forgot' && 'Sending Reset Link...'}
+                </span>
               </>
             ) : (
               <>
