@@ -1,16 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, Dumbbell, User, LogOut } from 'lucide-react';
+import { Menu, X, Dumbbell } from 'lucide-react';
 import AuthModal from './AuthModal';
-import { useAuthStore } from '../store/authStore';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isAuthenticated, logout } = useAuthStore();
 
   const navItems = [
     { name: 'Home', href: '#home' },
@@ -51,17 +48,6 @@ const Header = () => {
     setShowAuthModal(true);
   };
 
-  const handleAuthSuccess = (userData: any) => {
-    console.log('User authenticated:', userData);
-    // The auth store will be updated automatically through the API calls
-  };
-
-  const handleLogout = () => {
-    logout();
-    setShowUserMenu(false);
-    navigate('/');
-  };
-
   return (
     <>
       <header className="bg-white shadow-lg fixed w-full top-0 z-50">
@@ -85,62 +71,12 @@ const Header = () => {
             ))}
           </nav>
 
-          {/* Desktop Auth Section */}
-          <div className="hidden md:block">
-            {isAuthenticated && user ? (
-              <div className="relative">
-                <button
-                  onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center space-x-2 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors duration-200"
-                >
-                  <User className="w-4 h-4" />
-                  <span className="font-medium">{user.firstName}</span>
-                </button>
-                
-                {showUserMenu && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-                    <div className="px-4 py-2 border-b border-gray-200">
-                      <p className="text-sm font-medium text-gray-900">{user.firstName} {user.lastName}</p>
-                      <p className="text-xs text-gray-500">{user.email}</p>
-                      <p className="text-xs text-orange-500 capitalize">{user.membershipType} Member</p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setShowUserMenu(false);
-                        // Navigate to profile page when implemented
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                    >
-                      My Profile
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowUserMenu(false);
-                        navigate('/programs');
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                    >
-                      My Programs
-                    </button>
-                    <button
-                      onClick={handleLogout}
-                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center space-x-2"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      <span>Sign Out</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <button 
-                onClick={handleJoinNow}
-                className="bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600 transition-colors duration-200 font-medium"
-              >
-                Sign Up / Sign In
-              </button>
-            )}
-          </div>
+          <button 
+            onClick={handleJoinNow}
+            className="hidden md:block bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600 transition-colors duration-200 font-medium"
+          >
+            Sign Up / Sign In
+          </button>
 
           {/* Mobile Menu Button */}
           <button
@@ -163,56 +99,18 @@ const Header = () => {
                 {item.name}
               </button>
             ))}
-            
-            {/* Mobile Auth Section */}
-            {isAuthenticated && user ? (
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <div className="mb-3">
-                  <p className="text-sm font-medium text-gray-900">{user.firstName} {user.lastName}</p>
-                  <p className="text-xs text-gray-500">{user.email}</p>
-                  <p className="text-xs text-orange-500 capitalize">{user.membershipType} Member</p>
-                </div>
-                <button
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    navigate('/programs');
-                  }}
-                  className="w-full text-left py-2 text-gray-700 hover:text-orange-500 transition-colors duration-200"
-                >
-                  My Programs
-                </button>
-                <button
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    handleLogout();
-                  }}
-                  className="w-full text-left py-2 text-red-600 hover:text-red-700 transition-colors duration-200 flex items-center space-x-2"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
-            ) : (
-              <button 
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  handleJoinNow();
-                }}
-                className="w-full bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600 transition-colors duration-200 font-medium mt-4"
-              >
-                Sign Up / Sign In
-              </button>
-            )}
+            <button 
+              onClick={handleJoinNow}
+              className="w-full bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600 transition-colors duration-200 font-medium mt-4"
+            >
+              Sign Up / Sign In
+            </button>
           </div>
         )}
       </div>
       </header>
       
-      <AuthModal 
-        isOpen={showAuthModal} 
-        onClose={() => setShowAuthModal(false)}
-        onAuthSuccess={handleAuthSuccess}
-      />
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </>
   );
 };
